@@ -1,6 +1,6 @@
-# CLAUDE.md — Kitobo Forest Conservation Plan
+# Project Instructions.md — Kitobo Forest Conservation Plan
 
-> Project instructions for Claude Code. Read this fully before writing or running code.
+> Project instructions. Read this fully before writing or running code.
 > This file captures decisions already made with the project lead (Isaac Mureithi) so you
 > can continue the work rather than re-deriving it. Last updated 2026-10-23, after the first
 > hands-on pass: §2 records two corrections to the first handoff and §6 records what is verified.
