@@ -1,7 +1,7 @@
 # Methodology & design decisions — Kitobo Forest Conservation Plan
 
 This document records *why* the pipeline is built the way it is. Keep it in sync with the locked
-decisions in `CLAUDE.md` §2. Figures are in `docs/figures/`. Numbers quoted here were produced by the
+decisions in `Project Instructions.md`. Figures are in `docs/figures/`. Numbers quoted here were produced by the
 scripts in `scripts/` on 2026-10-23; the tables they come from are regenerated into `outputs/tables/`.
 
 ## Site
