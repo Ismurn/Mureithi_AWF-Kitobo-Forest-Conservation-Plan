@@ -1,0 +1,7 @@
+---
+title: "Mureithi_AWF-Kitobo-Forest-Conservation-Plan"
+author: "Isaac Nduta Mureithi"
+date: "2026-10-23"
+output: html_document
+---
+
