@@ -4,7 +4,7 @@ This repository contains the data and code for the spatial analysis supporting t
 
 Use of this code is licensed under [![Licence: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-Contact Isaac Mureithi at *[contact email to be added]*. Citation and Zenodo DOI: to be added on publication.
+Contact Isaac Mureithi at *IMureithi@awf.org / I.N.Mureithi@exeter.ac.uk*. Citation and Zenodo DOI: to be added on publication.
 
 ---
 
