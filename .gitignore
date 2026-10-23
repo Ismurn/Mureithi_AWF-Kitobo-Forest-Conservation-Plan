@@ -36,14 +36,49 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 
-# R Environment Variables
+# R Environment Variables (holds FIRMS_MAP_KEY - never commit)
 .Renviron
 
 # pkgdown site
-docs/
+# docs/  <- NOT ignored in this repo: docs/ holds methodology.md and its figures
 
 # translation temp files
 po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# -----------------------------------------------------------------------------
+# Kitobo pipeline additions
+# -----------------------------------------------------------------------------
+
+# Secrets
+*.key
+firms_map_key*
+
+# Large / regenerable data and outputs. Rules are "dir/*" (not "dir/") so that
+# a "!" exception for .gitkeep can still work.
+data/processed/*
+!data/processed/.gitkeep
+data/raw/gee/*
+outputs/*
+!outputs/.gitkeep
+
+# Operator's Google Earth outline: local QC reference only (original lives on
+# OneDrive). Remove this line if you decide to commit it.
+data/raw/*.kml
+
+# Rasters anywhere (GEE exports, WhiteboxTools scratch)
+*.tif
+
+# Left in the working directory by plots drawn from non-interactive R (Rscript)
+Rplots.pdf
+
+# Knitted output of the results note (re-created by Knit; commit it deliberately, not by accident)
+scripts/*.html
+scripts/*.docx
+scripts/*_files/
+
+# OS
+.DS_Store
+Thumbs.db
