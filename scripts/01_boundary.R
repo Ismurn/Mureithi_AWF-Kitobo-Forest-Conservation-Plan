@@ -131,6 +131,21 @@ chk <- chk +
   theme_minimal(base_size = 11) + theme(legend.position = "bottom")
 ggsave(file.path(dir_fig, "01_boundary_crs_check.png"), chk, width = 9, height = 5.5, dpi = 200)
 
+# Static boundary map: the boundary used, the survey points and the Google Earth outline (no basemap needed).
+lab_pts <- "Survey points"
+bmap <- ggplot() +
+  geom_sf(data = Kitobo.Forest, fill = "forestgreen", alpha = 0.3, colour = "darkgreen") +
+  geom_sf(data = Kitobo.Pts, aes(colour = lab_pts), size = 1.4)
+if (!no_ref) bmap <- bmap + geom_sf(data = Kitobo.Ref, aes(colour = lab_ref), linewidth = 0.7)
+bmap <- bmap +
+  scale_colour_manual(NULL, values = setNames(c("red", "goldenrod"), c(lab_pts, lab_ref))) +
+  labs(title = "Kitobo Forest: boundary used",
+       subtitle = paste0(if (params$boundary == "hull") paste0("Concave hull, ratio ", params$hull_ratio) else "Traced outline",
+                         ": ", round(area_ha(Kitobo.Forest), 1), " ha; ", nrow(Kitobo.Pts), " survey points"),
+       caption = "Green fill = forest boundary used") +
+  theme_minimal(base_size = 10) + theme(legend.position = "bottom")
+ggsave(file.path(dir_fig, "01_boundary_map.png"), bmap, width = 8, height = 5, dpi = 300)
+
 #  1f. Interactive QC: boundary + points + outline on satellite imagery 
 # Inspect this map. If the polygon clips real forest or bridges a gap, change
 # params$boundary / params$hull_ratio in 00_setup.R and re-run from the top.
@@ -141,7 +156,7 @@ qc_map <- qc_map +
   tm_shape(Kitobo.Pts) + tm_dots(fill = "red", size = 0.4) +
   tm_title("Kitobo Forest: survey points (red), boundary (green), Google Earth outline (gold)") +
   tm_basemap(server = basemaps)
-print(qc_map)
+if (interactive()) print(qc_map)   # shows it in the RStudio Viewer; printing under Rscript would leave an Rplots.pdf
 
 # 1g. Landscape context: host ranch / settlement / protected area
 # Kitobo lies WEST of the TTWCA ranch and settlement layers, so for those the useful answer

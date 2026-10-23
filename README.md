@@ -45,9 +45,24 @@ It is an R pipeline (`sf`, `terra`, WhiteboxTools) with Google Earth Engine scri
 | *data/raw/Final_Kitobo_Forest.kml* | The operator's Google Earth outline of the forest (WGS84). Used as a CRS reference and to compare the hull with the traced outline. Kept locally and not tracked (see *.gitignore*); the pipeline runs without it. |
 | *data/raw/gee/* | GeoTIFFs downloaded from Earth Engine (Drive exports). Not tracked: regenerable. |
 | *data/processed/* | Intermediate files written by the pipeline (GeoPackage copies, WhiteboxTools scratch). Not tracked. |
-| *outputs/* | Shapefiles, rasters, figures and tables written by the scripts. Not tracked. |
+| *outputs/* | Shapefiles, rasters, tables and figures written by the scripts (figures are listed below). Not tracked. |
 
 The Tsavo ranch and settlement layers (*RanchesTTWCA.shp*, *SettledAreas.shp*) and the Kenya administrative and protected-area layers are read from the folders set in `dir_tsv` and `dir_kenya` in *scripts/00_setup.R*. They are held in other TESS Lab repositories and are not redistributed here. Kitobo lies west of the ranch and settlement layers, so they only supply distances (*outputs/tables/01_landscape_context.csv*).
+
+### Figures
+
+Every figure the scripts draw is saved in *outputs/figures/*, named after the script that makes it. The results note only includes these files.
+
+| Figure | Script | Shows |
+|--------|--------|-------|
+| *01_boundary_map.png* | 01 | Forest boundary used, survey points and the Google Earth outline |
+| *01_boundary_crs_check.png* | 01 | Survey points under both coordinate-system readings against the Google Earth outline |
+| *01_hull_vs_outline.png* | 01 | Concave hulls at four ratios over the area enclosed by the traced outline |
+| *01_boundary_qc.html* | 01 | Interactive boundary map on satellite imagery |
+| *02_hydrology.png*, *02_hydrology.html* | 02 | Modelled streams and channel heads (static over a hillshade; interactive over the TWI) |
+| *02_twi_catchment.png*, *02_twi_forest.png* | 02 | Topographic wetness index over the catchment and around the forest |
+| *03_burn_severity.png*, *03_burn_severity.html* | 03 | Burn severity from Sentinel-2 dNBR (static close-up; interactive) |
+| *03_regeneration_nbr.png* | 03 | Monthly NBR of the whole forest, burned and unburned ground, and the burned-minus-unburned gap |
 
 ---
 
@@ -70,7 +85,7 @@ Each R script sources *scripts/00_setup.R* itself. Run them in this order:
 3. Optional: *scripts/03_fire_regeneration.R*, once, for Part A only (it checks the fire date against NASA FIRMS and needs a free key in `.Renviron`). The analysis uses the fire date set in `params$fire_date` (*scripts/00_setup.R*) either way.
 4. The Earth Engine script (*scripts/gee/01_kitobo_dNBR.js* and *02_kitobo_regeneration.js*, or the combined *kitobo_gee_combined_as_run_2026-10-23.js*) in the Code Editor, with the pre/post windows bracketing the fire. Download the Drive exports into *data/raw/gee/*.
 5. *scripts/03_fire_regeneration.R* again, for Parts B and C (burn severity, recovery trend).
-6. Knit *scripts/Mureithi_AWF-Kitobo-Forest-Conservation-Plan.Rmd* (HTML or Word) to assemble the results note. It can be knitted, or its chunks run one by one in RStudio, at any stage; sections without data show as pending.
+6. Knit *scripts/Mureithi_AWF-Kitobo-Forest-Conservation-Plan.Rmd* (HTML or Word) to assemble the results note. It can be knitted, or its chunks run one by one in RStudio. It needs the outputs of *scripts/01_boundary.R* and *scripts/02_dem_hydrology.R* (if one is missing it says which script to run); the fire and regeneration sections show as pending until *scripts/03_fire_regeneration.R* has run on the Earth Engine exports.
 
 ---
 

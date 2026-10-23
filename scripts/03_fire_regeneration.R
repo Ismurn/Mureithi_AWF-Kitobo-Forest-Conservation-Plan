@@ -79,8 +79,25 @@ if (file.exists(sev_tif)) {
     tm_shape(Kitobo.Forest) + tm_borders(col = "black", lwd = 2.5) +
     tm_title("Kitobo Forest — 2026 burn severity (Sentinel-2 dNBR)") +
     tm_basemap(server = basemaps)
-  print(sev_map)
+  if (interactive()) print(sev_map)   # shows it in the RStudio Viewer; printing under Rscript would leave an Rplots.pdf
   save_map(sev_map, file.path(dir_fig, "03_burn_severity.html"))
+
+  # Static severity map for reports: a close-up of the forest, boundary solid, traced outline dashed
+  sev_classes <- c("Unburned", "Low", "Moderate-low", "Moderate-high", "High")
+  sev_cols    <- c("#d9d9d9", "#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c")
+  forest_v    <- vect(st_transform(Kitobo.Forest, crs(Kitobo.Sev)))
+  sev_zoom    <- crop(Kitobo.Sev, ext(buffer(forest_v, 800)))
+  sev_present <- sort(unique(as.vector(values(sev_zoom, na.rm = TRUE))))
+  save_png("03_burn_severity.png", {
+    plot(sev_zoom, type = "classes", levels = sev_classes[sev_present + 1], col = sev_cols[sev_present + 1],
+         mar = c(4.6, 3.1, 2.6, 9.1),   # wide right margin so the legend is not cut off; room for a note below
+         main = paste0("Burn severity (Sentinel-2 dNBR): ", format(params$fire_date, "%B %Y"), " fire"))
+    mtext("Solid line: forest boundary used; dashed line: traced Google Earth outline", side = 1, line = 3.2, cex = 0.8)
+    lines(forest_v, col = "black", lwd = 2)
+    if (file.exists(file.path(dir_proc, "kitobo_outline.gpkg")))
+      lines(vect(st_transform(st_read(file.path(dir_proc, "kitobo_outline.gpkg"), quiet = TRUE), crs(Kitobo.Sev))),
+            col = "black", lwd = 1.5, lty = 2)
+  }, width = 9.5)
 
   # Burned-area fraction by severity class, within the forest (exactextractr idiom)
   burn_frac <- exact_extract(Kitobo.Sev,

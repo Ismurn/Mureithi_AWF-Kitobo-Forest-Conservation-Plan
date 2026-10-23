@@ -92,7 +92,7 @@ hydro_map <- tm_shape(crop(Kitobo.TWI, vect(Kitobo.Buff))) +
   tm_shape(Kitobo.Forest)  + tm_borders(col = "darkgreen", lwd = 2.5) +
   tm_title("Kitobo — modelled surface drainage, channel heads & wetness") +
   tm_basemap(server = basemaps)
-print(hydro_map)
+if (interactive()) print(hydro_map)   # shows it in the RStudio Viewer; printing under Rscript would leave an Rplots.pdf
 save_map(hydro_map, file.path(dir_fig, "02_hydrology.html"))
 
 # 2j. Static map for reports (no basemap): hillshade, streams, heads, forest
@@ -106,6 +106,19 @@ lines(vect(Kitobo.Streams), col = "steelblue", lwd = 0.7)
 points(vect(Kitobo.Sources), col = "red", pch = 16, cex = 0.4)
 lines(vect(Kitobo.Forest), col = "darkgreen", lwd = 2.5)
 invisible(dev.off())
+
+# Static TWI maps: the whole catchment and a close-up of the forest (streams white, forest red).
+# Colours are stretched between the 2nd and 98th percentile so a few extreme cells do not wash out the pattern.
+twi_range <- quantile(values(Kitobo.TWI, na.rm = TRUE), c(0.02, 0.98))
+twi_plot  <- function(r, main) {
+  plot(clamp(r, twi_range[[1]], twi_range[[2]]), col = viridis::viridis(50), main = main)
+  lines(vect(Kitobo.Streams), col = "white", lwd = 1)
+  lines(vect(Kitobo.Forest), col = "red", lwd = 2)
+}
+save_png("02_twi_catchment.png",
+         twi_plot(crop(Kitobo.TWI, vect(Kitobo.Buff)), "Topographic wetness index: catchment (forest red, streams white)"))
+save_png("02_twi_forest.png",
+         twi_plot(crop(Kitobo.TWI, ext(buffer(vect(Kitobo.Forest), 1500))), "Topographic wetness index around the forest"))
 
 # 2k. Drainage summary: use it to tune params$stream_area_km2
 dem_km2   <- as.numeric(global(!is.na(Kitobo.DEM), "sum")) * prod(res(Kitobo.DEM)) / 1e6

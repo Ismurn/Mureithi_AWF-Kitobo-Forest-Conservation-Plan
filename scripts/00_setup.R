@@ -87,8 +87,21 @@ basemaps <- c("Esri.WorldImagery", "OpenStreetMap",
 
 # Save an interactive tmap as HTML. A self-contained file needs pandoc (bundled with
 # RStudio); plain Rscript has none, so fall back to a file plus a _files folder.
-save_map <- function(m, file)
+save_map <- function(m, file) {
+  grDevices::pdf(NULL)            # tmap opens a graphics device while saving: keep it off the disk (no Rplots.pdf)
+  on.exit(grDevices::dev.off())
   tmap_save(m, file, selfcontained = rmarkdown::pandoc_available())
+}
+
+# Save a base-graphics plot (terra::plot etc.) as a PNG in outputs/figures:
+#   save_png("name.png", { plot(...); lines(...) })
+# The plotting code runs inside the open device. (ggplot objects use ggsave directly.)
+save_png <- function(name, code, width = 8, height = 6.5, res = 300) {
+  png(file.path(dir_fig, name), width = width, height = height, units = "in", res = res)
+  on.exit(dev.off())
+  force(code)
+  invisible(file.path(dir_fig, name))
+}
 
 message("Setup complete | working CRS = ", crs_utm, " | survey points CRS = ", crs_pts,
         " | FIRMS key ", ifelse(nzchar(firms_map_key), "loaded", "NOT set (needed in 03_...)"))
