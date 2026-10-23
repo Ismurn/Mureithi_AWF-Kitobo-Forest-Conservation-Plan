@@ -122,13 +122,33 @@ the forest; several ephemeral flow paths converge on the forest from the north a
 dNBR quality depends on a reasonably cloud-free pre/post Sentinel-2 pair; if the post window is cloudy,
 widen it or step to the next clear scene.
 
+**As run (2026-10-23).** The windows were 10 Jan–10 Feb 2026 (before) and 1 Mar–15 Apr 2026 (after), for a fire dated to
+mid-February (the date is as given and has not been checked against FIRMS). 23.5% of the forest (36.3 ha of the
+154.6 ha hull) has dNBR above 100: Low 12.9%, Moderate-low 9.0%, Moderate-high 1.3% and High 0.3% of the forest, so
+93% of the burned area is low or moderate-low severity. The traced outline gives 35.4 ha (20.1%): the burned hectares
+hardly depend on the boundary, only the share does (`outputs/tables/burn_by_boundary.csv`). The Key & Benson classes
+are usable inside the forest, where the unburned ground is steady between the windows (median dNBR −2). Outside it the
+savanna and fields green up as the long rains start (median dNBR −109), so the severity raster should not be read
+outside the forest.
+
 ## 5. Regeneration
 
-Post-fire vegetation recovery is tracked as a **monthly mean NBR/NDVI series over the burned area**,
-from a pre-fire baseline through the present. A **Theil-Sen slope** on the post-fire series gives a robust
-"regeneration rate" for reporting — the same non-parametric trend method used elsewhere in the project. It is
-computed as the median of all pairwise slopes against months since the fire, so it stays correct when cloudy
-months are missing; the p-value is the Mann-Kendall test from `trend::sens.slope`.
+Post-fire recovery is tracked with the **monthly mean NBR** from a pre-fire baseline through the present (Oct 2025 to
+Oct 2026). Whole-forest NBR is the wrong measure here: only 23.5% of the forest burned, and the series carries the
+seasonal cycle of the rains, so its Theil-Sen slope after the fire is flat (−0.0006 NBR per month, p = 0.90). Recovery
+is instead measured as the **gap between burned and unburned ground inside the forest**, which share vegetation and
+season. Burned = at least half of the four 10 m severity cells in a 20 m NBR cell are burned (dNBR above 100);
+unburned = none of them; mixed cells are left out.
+
+Results (2026-10-23): the gap was +0.002 before the fire, so the unburned ground is a fair control. It fell to −0.36 in
+March 2026 and was within 10% of its pre-fire value by June 2026, 3.5 months after the fire. The **Theil-Sen slope over
+the recovery phase** (March to June, four months) is +0.125 NBR per month (p = 0.09; four points give a test with little
+power). The slope is the median of all pairwise slopes against months since the fire (`params$fire_date`), so it stays
+correct when cloudy months are missing; the p-value is the Mann-Kendall test from `trend::sens.slope`.
+
+**Interpretation.** This is recovery of the *spectral signal* (green, moist cover), and it coincides with the long
+rains. It does not show recovery of woody structure, species composition or the springs, which take years; a multi-year
+baseline and field indicators would be needed for that.
 
 In the Earth Engine export the monthly bands are named by month (`2025_10_01_NBR`, …) and months without a clear
 scene are exported as masked placeholders, so the R side can read the dates from the band names.

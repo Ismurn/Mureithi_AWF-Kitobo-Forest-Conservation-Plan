@@ -31,9 +31,10 @@ It is an R pipeline (`sf`, `terra`, WhiteboxTools) with Google Earth Engine scri
 | *scripts/00_setup.R* | Packages, CRS, paths, tunable parameters (`params`) and helpers. Sourced by every phase script. |
 | *scripts/01_boundary.R* | Reads the survey points, checks their CRS against the Google Earth outline, builds the forest polygon, reports landscape context and saves *Kitobo_Forest.shp*. |
 | *scripts/02_dem_hydrology.R* | DEM over a buffered catchment, terrain derivatives, WhiteboxTools flow routing, stream network, channel heads and TWI. |
-| *scripts/03_fire_regeneration.R* | Part A: NASA FIRMS sweep for the fire date. Part B: import Sentinel-2 dNBR severity and map it. Part C: NBR recovery series and Theil-Sen trend. |
+| *scripts/03_fire_regeneration.R* | Part A: NASA FIRMS sweep for the fire date. Part B: import Sentinel-2 dNBR severity and map it. Part C: monthly NBR of burned vs unburned forest and the Theil-Sen recovery rate. |
 | *scripts/gee/01_kitobo_dNBR.js* | Earth Engine: Sentinel-2 dNBR and Key & Benson severity classes, exported to Drive. |
 | *scripts/gee/02_kitobo_regeneration.js* | Earth Engine: NBR/NDVI recovery chart and monthly NBR stack, exported to Drive. |
+| *scripts/gee/kitobo_gee_combined_as_run_2026-10-23.js* | Earth Engine: the combined script as run on 2026-10-23 (windows set for a mid-February 2026 fire). It produced the exports in *data/raw/gee/*. |
 | *scripts/Mureithi_AWF-Kitobo-Forest-Conservation-Plan.Rmd* | Results note (knits to HTML or Word). It reads the pipeline outputs, so the boundary and hydrology sections fill in now and the fire and regeneration sections fill in once *scripts/03_fire_regeneration.R* has run on the Earth Engine exports. |
 
 ### Data
@@ -66,10 +67,10 @@ Each R script sources *scripts/00_setup.R* itself. Run them in this order:
 
 1. *scripts/01_boundary.R*. Then upload *outputs/shapefiles/Kitobo_Forest.shp* to Earth Engine as `projects/ee-imnduta1/assets/Kitobo_Forest`.
 2. *scripts/02_dem_hydrology.R*
-3. *scripts/03_fire_regeneration.R*, once, for Part A only (it reports the fire date from FIRMS).
-4. *scripts/gee/01_kitobo_dNBR.js* and *scripts/gee/02_kitobo_regeneration.js* in the Earth Engine Code Editor, with the pre/post windows set from the FIRMS date. Download the Drive exports into *data/raw/gee/*.
+3. Optional: *scripts/03_fire_regeneration.R*, once, for Part A only (it checks the fire date against NASA FIRMS and needs a free key in `.Renviron`). The analysis uses the fire date set in `params$fire_date` (*scripts/00_setup.R*) either way.
+4. The Earth Engine script (*scripts/gee/01_kitobo_dNBR.js* and *02_kitobo_regeneration.js*, or the combined *kitobo_gee_combined_as_run_2026-10-23.js*) in the Code Editor, with the pre/post windows bracketing the fire. Download the Drive exports into *data/raw/gee/*.
 5. *scripts/03_fire_regeneration.R* again, for Parts B and C (burn severity, recovery trend).
-6. Knit *scripts/Mureithi_AWF-Kitobo-Forest-Conservation-Plan.Rmd* (HTML or Word) to assemble the results note. It can be knitted at any stage; sections without data show as pending.
+6. Knit *scripts/Mureithi_AWF-Kitobo-Forest-Conservation-Plan.Rmd* (HTML or Word) to assemble the results note. It can be knitted, or its chunks run one by one in RStudio, at any stage; sections without data show as pending.
 
 ---
 

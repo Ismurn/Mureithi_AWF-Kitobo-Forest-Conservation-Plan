@@ -1,4 +1,3 @@
-# =============================================================================
 # 01_boundary.R  —  Build the Kitobo Forest polygon
 # Reads the survey points (Arc 1960 / UTM 37S), checks the CRS against the
 # operator's Google Earth outline, reprojects to WGS84 / UTM 37S, builds the
@@ -6,16 +5,15 @@
 # outline), puts the forest in its landscape context, and saves the
 # authoritative shapefile used by every downstream step.
 # Prereq: none (sources 00_setup.R itself).
-# =============================================================================
 source("scripts/00_setup.R")
 
-# ---- 1a. Read the survey points ---------------------------------------------
+# 1a. Read the survey points 
 # Projected X/Y recorded in crs_pts (NOT EPSG:4326). Exact repeats (duplicate GPS
 # fixes) are dropped.
 Kitobo.Raw <- read_csv(path_pts, show_col_types = FALSE) %>% distinct(X, Y)
 message("Boundary points: ", nrow(Kitobo.Raw), " unique")
 
-# ---- 1b. CRS check against the reference outline ----------------------------
+# 1b. CRS check against the reference outline 
 # The Google Earth outline (WGS84) is an independent trace of the same forest. Read in
 # the right CRS the points sit on that line (median offset of a few metres); read in
 # the wrong one they are hundreds of metres away.
@@ -39,12 +37,12 @@ if (file.exists(path_kml_ref)) {
   message("NOTE: reference outline ", path_kml_ref, " not found; skipping the CRS check.")
 }
 
-# ---- 1c. Points in the working CRS ------------------------------------------
+# 1c. Points in the working CRS 
 Kitobo.Pts <- Kitobo.Raw %>%
   st_as_sf(coords = c("X", "Y"), crs = crs_pts) %>%
   st_transform(crs_utm)
 
-# ---- 1d. Boundary candidates ------------------------------------------------
+# 1d. Boundary candidates
 # (i)  D2: CONCAVE hull of the survey points. The points lie only on the perimeter, so a low
 #      ratio cuts chords across the interior. Needs sf >= 1.0-14 with GEOS >= 3.11.
 # (ii) The operator's Google Earth trace is an ORDERED outline of the same forest: close it,
@@ -62,6 +60,9 @@ iou <- function(a, b) area_ha(st_intersection(a, b)) / area_ha(st_union(c(a, b))
 
 Kitobo.Hull    <- hull_at(params$hull_ratio)
 Kitobo.Outline <- if (!is.null(Kitobo.Ref)) outline_polygon(Kitobo.Ref)
+if (!is.null(Kitobo.Outline))   # kept so 03 can report burned area under both boundaries
+  st_write(st_sf(name = "Kitobo traced outline", geometry = Kitobo.Outline),
+           file.path(dir_proc, "kitobo_outline.gpkg"), append = FALSE, quiet = TRUE)
 
 boundary <- switch(params$boundary,
   hull    = Kitobo.Hull,
@@ -108,7 +109,7 @@ if (!no_ref) {
   ggsave(file.path(dir_fig, "01_hull_vs_outline.png"), cmp, width = 9, height = 6, dpi = 200)
 }
 
-# ---- 1e. Static check figure (no basemap needed) -----------------------------
+# 1e. Static check figure (no basemap needed) 
 # Survey points under both CRS readings vs the Google Earth outline.
 Kitobo.Pts.asWGS84 <- Kitobo.Raw %>% st_as_sf(coords = c("X", "Y"), crs = crs_utm)
 lab_ok  <- "Survey points read as Arc 1960 / UTM 37S"
@@ -130,7 +131,7 @@ chk <- chk +
   theme_minimal(base_size = 11) + theme(legend.position = "bottom")
 ggsave(file.path(dir_fig, "01_boundary_crs_check.png"), chk, width = 9, height = 5.5, dpi = 200)
 
-# ---- 1f. Interactive QC: boundary + points + outline on satellite imagery ----
+#  1f. Interactive QC: boundary + points + outline on satellite imagery 
 # Inspect this map. If the polygon clips real forest or bridges a gap, change
 # params$boundary / params$hull_ratio in 00_setup.R and re-run from the top.
 qc_map <- tm_shape(Kitobo.Forest) +
@@ -142,7 +143,7 @@ qc_map <- qc_map +
   tm_basemap(server = basemaps)
 print(qc_map)
 
-# ---- 1g. Landscape context: host ranch / settlement / protected area ---------
+# 1g. Landscape context: host ranch / settlement / protected area
 # Kitobo lies WEST of the TTWCA ranch and settlement layers, so for those the useful answer
 # is the distance to the nearest feature (0 = the forest intersects it).
 context_tab <- tryCatch(
@@ -166,7 +167,7 @@ if (!is.null(context_tab)) {
   readr::write_csv(context_tab, file.path(dir_tab, "01_landscape_context.csv"))
 }
 
-# ---- 1h. Save the authoritative shapefile + a GeoPackage copy ---------------
+# 1h. Save the authoritative shapefile + a GeoPackage copy
 st_write(Kitobo.Forest, file.path(dir_shp, "Kitobo_Forest.shp"),
          append = FALSE, quiet = TRUE)
 st_write(Kitobo.Forest, file.path(dir_proc, "kitobo_forest.gpkg"),
