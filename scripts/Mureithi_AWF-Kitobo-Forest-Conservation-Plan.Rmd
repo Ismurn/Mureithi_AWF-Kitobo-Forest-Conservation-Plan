@@ -1,7 +1,255 @@
 ---
-title: "Mureithi_AWF-Kitobo-Forest-Conservation-Plan"
+title: "Kitobo Forest Conservation Plan"
+subtitle: "Results note: boundary, hydrology, fire and regeneration"
 author: "Isaac Nduta Mureithi"
-date: "2026-10-23"
-output: html_document
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+  word_document:
+    toc: true
+    toc_depth: 2
 ---
 
+```{r root, include=FALSE}
+# This notebook lives in scripts/; everything else is resolved from the repository root.
+knitr::opts_knit$set(root.dir = here::here())
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      fig.width = 7.5, fig.height = 4.8, dpi = 150)
+options(knitr.kable.NA = "n/a")
+source("scripts/00_setup.R")   # packages, CRS, paths and params, exactly as in the pipeline
+
+# A pipeline output, or a clear message to run the numbered scripts first.
+need <- function(f) {
+  if (!file.exists(f)) stop("Missing ", f, ". Run the numbered scripts first (see README).", call. = FALSE)
+  f
+}
+fmt <- function(x, d = 1) formatC(x, format = "f", digits = d, big.mark = ",")
+```
+
+```{r numbers}
+# ---- Boundary ---------------------------------------------------------------
+forest      <- st_read(need(file.path(dir_proc, "kitobo_forest.gpkg")), quiet = TRUE)
+forest_ha   <- area_ha(forest)
+pts_raw     <- distinct(read_csv(need(path_pts), show_col_types = FALSE), X, Y)
+hull_tab    <- read_csv(need(file.path(dir_tab, "01_hull_ratio_sensitivity.csv")), show_col_types = FALSE)
+this_hull   <- hull_tab[abs(hull_tab$hull_ratio - params$hull_ratio) < 1e-9, ]
+has_outline <- nrow(this_hull) == 1 && !is.na(this_hull$iou_vs_outline)
+outline_ha  <- if (has_outline) this_hull$hull_ha - this_hull$hull_beyond_outline_ha + this_hull$outline_missed_ha
+bnd_text    <- if (params$boundary == "hull")
+  paste0("concave hull (ratio ", params$hull_ratio, ") of the ", nrow(pts_raw), " unique survey points") else
+  "polygon traced by the operator in Google Earth"
+crs_file    <- file.path(dir_tab, "01_crs_check.csv")
+crs_tab     <- if (file.exists(crs_file)) read_csv(crs_file, show_col_types = FALSE)
+crs_ok      <- if (!is.null(crs_tab)) crs_tab[crs_tab$points_read_as == crs_pts, ]
+crs_alt     <- if (!is.null(crs_tab)) crs_tab[crs_tab$points_read_as == "EPSG:32737", ]
+ctx_file    <- file.path(dir_tab, "01_landscape_context.csv")
+ctx_tab     <- if (file.exists(ctx_file)) read_csv(ctx_file, show_col_types = FALSE)
+
+# ---- Hydrology --------------------------------------------------------------
+dem        <- rast(need(file.path(dir_wbt, "dem.tif")))
+streams    <- st_read(need(file.path(dir_shp, "Kitobo_Streams.shp")), quiet = TRUE)
+heads      <- st_read(need(file.path(dir_shp, "Kitobo_ChannelHeads.shp")), quiet = TRUE)
+twi        <- rast(need(file.path(dir_ras, "kitobo_twi.tif")))
+dem_km2    <- as.numeric(global(!is.na(dem), "sum")) * prod(res(dem)) / 1e6
+stream_km  <- sum(as.numeric(st_length(streams))) / 1000
+stream_in  <- sum(as.numeric(st_length(suppressWarnings(st_intersection(streams, forest))))) / 1000
+heads_in   <- sum(lengths(st_intersects(heads, forest)) > 0)
+twi_vals   <- as.vector(values(twi, na.rm = TRUE))
+twi_forest <- as.numeric(exact_extract(twi, forest, "mean"))
+twi_pct    <- 100 * ecdf(twi_vals)(twi_forest)
+
+# ---- Fire and regeneration: filled in once scripts/03 has run on the Earth Engine exports ----
+firms_file <- file.path(dir_proc, "kitobo_firms.gpkg")
+sev_file   <- file.path(dir_gee, "Kitobo_Severity.tif")
+burn_file  <- file.path(dir_tab, "burn_fraction_by_class.csv")
+rec_png    <- file.path(dir_fig, "03_regeneration_nbr.png")
+trend_file <- file.path(dir_tab, "nbr_recovery_trend.csv")
+has_firms  <- file.exists(firms_file)
+has_burn   <- file.exists(sev_file) && file.exists(burn_file)
+has_rec    <- file.exists(trend_file) && file.exists(rec_png)
+
+fire_by_date <- NULL                 # VIIRS detections within 1 km of the forest, by date
+if (has_firms) {
+  fires <- st_read(firms_file, quiet = TRUE)
+  near  <- fires[as.numeric(st_distance(fires, st_union(forest))) <= 1000, ]
+  if (nrow(near))
+    fire_by_date <- near %>% st_drop_geometry() %>% count(acq_date, name = "detections") %>% arrange(acq_date)
+}
+if (has_burn) {
+  burn <- read_csv(burn_file, show_col_types = FALSE) %>%
+    pivot_longer(everything(), names_to = "class", values_to = "fraction") %>%
+    mutate(class_id = as.integer(sub("frac_", "", class)),
+           Severity = c("Unburned", "Low", "Moderate-low", "Moderate-high", "High")[class_id + 1]) %>%
+    arrange(class_id) %>%
+    transmute(Severity, `Share of forest (%)` = round(100 * fraction, 1), `Area (ha)` = round(fraction * forest_ha, 1))
+  burned_pct <- sum(burn$`Share of forest (%)`[burn$Severity != "Unburned"])
+}
+if (has_rec) trend <- read_csv(trend_file, show_col_types = FALSE)
+
+# ---- Key-results table --------------------------------------------------------
+pending <- "Pending: needs the Earth Engine export (see README)"
+r_fire <- if (!is.null(fire_by_date)) {
+  peak <- fire_by_date[which.max(fire_by_date$detections), ]
+  paste0(format(min(fire_by_date$acq_date), "%d %b %Y"), " to ", format(max(fire_by_date$acq_date), "%d %b %Y"),
+         "; peak ", format(peak$acq_date, "%d %b %Y"), " (", peak$detections, " detections)")
+} else if (has_firms) "No VIIRS detections within 1 km of the forest" else pending
+key <- tibble(
+  Indicator = c("Forest boundary", "Survey coordinate system", "Catchment analysed", "Modelled surface drainage",
+                "Mean TWI in the forest", "Fire date", "Burned share of the forest", "NBR recovery rate"),
+  Result = c(
+    paste0(fmt(forest_ha), " ha"),
+    "Arc 1960 / UTM zone 37S",
+    paste0(fmt(dem_km2), " km2"),
+    paste0(fmt(stream_km), " km (", fmt(stream_km / dem_km2, 2), " km/km2); ", nrow(heads), " channel heads, ", heads_in, " inside the forest"),
+    paste0(fmt(twi_forest), " (above ", fmt(twi_pct, 0), "% of the catchment)"),
+    r_fire,
+    if (has_burn) paste0(fmt(burned_pct), "% (", fmt(burned_pct / 100 * forest_ha), " ha)") else pending,
+    if (has_rec) paste0(fmt(trend$slope_per_month, 3), " NBR per month (", fmt(trend$slope_per_year, 2), " per year)") else pending),
+  Basis = c(
+    paste0(bnd_text, if (has_outline) paste0("; the traced Google Earth outline encloses ", fmt(outline_ha), " ha")),
+    if (!is.null(crs_ok) && nrow(crs_ok) == 1)
+      paste0("Median distance to the Google Earth outline ", fmt(crs_ok$median_m), " m (", fmt(crs_alt$median_m, 0), " m if read as WGS84)") else "EPSG:21037",
+    paste0(params$catchment_buffer / 1000, " km buffer around the forest; DEM cells ", fmt(res(dem)[1]), " m, interpolated from ~30 m data"),
+    paste0("Streams start at ", params$stream_area_km2, " km2 of contributing area (provisional). Surface runoff, not springs"),
+    paste0("Catchment median ", fmt(median(twi_vals)), ". TWI flags saturation-prone positions"),
+    "NASA FIRMS VIIRS (375 m), detections within 1 km of the forest",
+    "Sentinel-2 dNBR, Key & Benson severity classes",
+    if (has_rec) paste0("Theil-Sen slope over ", trend$n_months, " post-fire months, p = ", signif(trend$p_value, 2)) else "Theil-Sen slope of monthly NBR since the fire")
+)
+```
+
+# Summary
+
+```{r key-table}
+knitr::kable(key)
+```
+
+- The forest boundary used throughout is the `r bnd_text`: **`r fmt(forest_ha)` ha**.
+- The survey coordinates are in **Arc 1960 / UTM zone 37S**, not WGS84. Read as WGS84 the forest is displaced by about 315 m.
+- Modelled drainage is **surface runoff**, not the springs that feed this groundwater forest. `r heads_in` of `r nrow(heads)` channel heads fall inside the forest.
+- `r if (has_burn || has_rec || has_firms) "Fire and regeneration results are in sections 3 and 4." else "Fire and regeneration results are pending the Earth Engine exports (sections 3 and 4)."`
+
+# 1. Study area and boundary
+
+Kitobo Forest is a small groundwater and riverine forest near Taveta, Taita-Taveta County, Kenya, in the Tsavo landscape. The forest polygon used throughout is the `r bnd_text`, which encloses **`r fmt(forest_ha)` ha**.
+
+```{r boundary-map, fig.cap = "Forest boundary used (green), survey points (red) and, where available, the operator's Google Earth outline (gold)."}
+pts_sf <- pts_raw %>% st_as_sf(coords = c("X", "Y"), crs = crs_pts) %>% st_transform(crs_utm)
+ref_sf <- if (file.exists(path_kml_ref)) st_read(path_kml_ref, quiet = TRUE) %>% st_zm() %>% st_transform(crs_utm)
+lab_pts <- "Survey points"
+lab_ref <- "Google Earth outline"
+p <- ggplot() +
+  geom_sf(data = forest, fill = "forestgreen", alpha = 0.3, colour = "darkgreen") +
+  geom_sf(data = pts_sf, aes(colour = lab_pts), size = 1.4)
+if (!is.null(ref_sf)) p <- p + geom_sf(data = ref_sf, aes(colour = lab_ref), linewidth = 0.7)
+p + scale_colour_manual(NULL, values = setNames(c("red", "goldenrod"), c(lab_pts, lab_ref))) +
+  theme_minimal(base_size = 10) + theme(legend.position = "bottom")
+```
+
+`r if (has_outline) paste0("The operator's own Google Earth outline encloses ", fmt(outline_ha), " ha. The hull covers about ", fmt(100 * (1 - this_hull$outline_missed_ha / outline_ha), 0), "% of it (intersection over union ", fmt(this_hull$iou_vs_outline, 2), "), and ", fmt(this_hull$hull_beyond_outline_ha, 0), " ha of the hull lie outside it. The survey points sit only on the perimeter, so a concave hull with a low ratio cuts chords across the interior; the forest is usually quoted at about 150 ha, which matches the hull rather than the traced outline.")`
+
+```{r hull-table, eval = has_outline}
+knitr::kable(transmute(hull_tab,
+  `Hull ratio` = hull_ratio, `Hull area (ha)` = round(hull_ha, 1), `IoU with outline` = round(iou_vs_outline, 2),
+  `Outline missed (ha)` = round(outline_missed_ha, 1), `Hull beyond outline (ha)` = round(hull_beyond_outline_ha, 1)),
+  caption = "Concave hull of the survey points at different ratios, compared with the area enclosed by the Google Earth outline (ratio 1 is the convex hull).")
+```
+
+```{r hull-fig, eval = file.exists(file.path(dir_fig, "01_hull_vs_outline.png")), out.width = "100%", fig.cap = "Concave hulls (green lines) over the area enclosed by the Google Earth outline (yellow)."}
+knitr::include_graphics(normalizePath(file.path(dir_fig, "01_hull_vs_outline.png")), rel_path = FALSE)
+```
+
+**Coordinate system.** `r if (!is.null(crs_ok) && nrow(crs_ok) == 1) paste0("The survey points sit a median ", fmt(crs_ok$median_m), " m (90th percentile ", fmt(crs_ok$p90_m), " m) from the Google Earth outline when read as Arc 1960 / UTM 37S, against ", fmt(crs_alt$median_m, 0), " m (", fmt(crs_alt$p90_m, 0), " m) when read as WGS84 / UTM 37S. The gap is the Arc 1960 to WGS84 datum shift at this location, so the points are treated as Arc 1960 and transformed to WGS84 / UTM 37S for all metric work.") else "The survey points are recorded in Arc 1960 / UTM zone 37S and are transformed to WGS84 / UTM 37S for all metric work."`
+
+```{r context, eval = !is.null(ctx_tab)}
+knitr::kable(transmute(ctx_tab, Layer = layer, `Nearest feature` = nearest, `Distance from the forest (km)` = distance_km),
+             caption = "Landscape context: Kitobo lies outside the Tsavo ranch and settlement layers.")
+```
+
+# 2. Surface hydrology
+
+Flow paths were derived from an open DEM (`elevatr`, `r fmt(res(dem)[1])` m cells interpolated from roughly 30 m data) over a `r params$catchment_buffer / 1000` km buffer around the forest (`r fmt(dem_km2)` km2). WhiteboxTools breached depressions, routed flow (D8), and extracted streams where a cell drains at least `r params$stream_area_km2` km2 (a provisional threshold). Channel heads are the upstream-most nodes of the network, and the topographic wetness index (TWI) combines upslope contributing area and slope.
+
+```{r hydro-fig, eval = file.exists(file.path(dir_fig, "02_hydrology.png")), out.width = "100%", fig.cap = "Modelled surface drainage (blue), channel heads (red) and the forest (green) over a hillshaded DEM."}
+knitr::include_graphics(normalizePath(file.path(dir_fig, "02_hydrology.png")), rel_path = FALSE)
+```
+
+The network has `r nrow(streams)` segments totalling `r fmt(stream_km)` km (`r fmt(stream_km / dem_km2, 2)` km/km2) and `r nrow(heads)` channel heads, `r heads_in` of them inside the forest. About `r fmt(stream_in, 2)` km of modelled channel cross the forest.
+
+```{r twi-map, fig.cap = "Topographic wetness index around the forest (red outline) with modelled streams (white)."}
+zoom  <- st_bbox(st_buffer(forest, 1500))
+twi_z <- crop(twi, ext(zoom[["xmin"]], zoom[["xmax"]], zoom[["ymin"]], zoom[["ymax"]]))
+plot(twi_z, col = viridis::viridis(50), main = "Topographic wetness index")
+lines(vect(streams), col = "white", lwd = 1.2)
+lines(vect(forest), col = "red", lwd = 2)
+```
+
+Mean TWI inside the forest is `r fmt(twi_forest)`, above `r fmt(twi_pct, 0)`% of the catchment's cells (catchment median `r fmt(median(twi_vals))`). TWI is the better guide to water availability for this forest: **the modelled streams are surface runoff and erosion drainage, not the springs that feed it.** Over flat terrain the channel heads and the drainage density depend strongly on the DEM and on the stream threshold, so they should be read as indicative.
+
+# 3. Fire
+
+## 3.1 Fire date (NASA FIRMS)
+
+`r if (!is.null(fire_by_date)) "VIIRS active-fire detections (375 m pixels) within 1 km of the forest give the date, not the extent:" else if (has_firms) "The FIRMS sweep returned no VIIRS detections within 1 km of the forest." else "*Pending: run scripts/03_fire_regeneration.R (Part A) with a FIRMS key in .Renviron.*"`
+
+```{r firms-table, eval = !is.null(fire_by_date)}
+knitr::kable(rename(fire_by_date, Date = acq_date, Detections = detections),
+             caption = "VIIRS detections within 1 km of the forest, by acquisition date.")
+```
+
+## 3.2 Extent and severity (Sentinel-2 dNBR)
+
+`r if (!has_burn) "*Pending: run scripts/gee/01_kitobo_dNBR.js in Earth Engine, download the exports to data/raw/gee/, then run scripts/03_fire_regeneration.R.*" else paste0("About ", fmt(burned_pct), "% of the forest (", fmt(burned_pct / 100 * forest_ha), " ha) shows burn (dNBR above 100) in the Sentinel-2 pre/post comparison; the table gives the share by Key and Benson severity class.")`
+
+```{r burn-table, eval = has_burn}
+knitr::kable(burn, caption = "Burn severity within the forest boundary.")
+```
+
+```{r burn-map, eval = has_burn, fig.cap = "Burn severity (Sentinel-2 dNBR) with the forest boundary."}
+sev      <- rast(sev_file)
+labs_sev <- c("Unburned", "Low", "Moderate-low", "Moderate-high", "High")
+cols_sev <- c("#d9d9d9", "#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c")
+present  <- sort(unique(as.vector(values(sev, na.rm = TRUE))))
+plot(sev, type = "classes", levels = labs_sev[present + 1], col = cols_sev[present + 1],
+     main = "Burn severity (Sentinel-2 dNBR)")
+lines(vect(st_transform(forest, crs(sev))), col = "black", lwd = 2)
+```
+
+# 4. Regeneration
+
+`r if (!has_rec) "*Pending: run scripts/gee/02_kitobo_regeneration.js, download the monthly NBR stack to data/raw/gee/, then run scripts/03_fire_regeneration.R (Part C).*" else paste0("Mean NBR over the forest recovers at about ", fmt(trend$slope_per_month, 3), " per month (", fmt(trend$slope_per_year, 2), " per year; Theil-Sen, ", trend$n_months, " post-fire months, p = ", signif(trend$p_value, 2), "). The slope is taken against real time, so months without a clear Sentinel-2 scene do not distort it.")`
+
+```{r rec-fig, eval = has_rec, out.width = "100%", fig.cap = "Monthly mean NBR over the forest: fire date (dashed) and Theil-Sen post-fire trend (green)."}
+knitr::include_graphics(normalizePath(rec_png), rel_path = FALSE)
+```
+
+# 5. Caveats and next steps
+
+**Caveats**
+
+- Modelled streams are surface runoff and erosion drainage. They are not the springs that feed this groundwater forest; pair TWI with any field-known spring locations.
+- The DEM is interpolated from roughly 30 m data over flat terrain, so channel heads and drainage density are sensitive to the stream threshold and to canopy bias. FABDEM is preferred for publication.
+- The boundary is a concave hull of perimeter points. It covers about `r if (has_outline) fmt(100 * (1 - this_hull$outline_missed_ha / outline_ha), 0) else "n/a"`% of the operator's traced outline, so burned-area fractions refer to the hull.
+- FIRMS (375 m) gives the date only; extent and severity come from Sentinel-2 (10 to 20 m). dNBR needs a reasonably cloud-free pre/post pair bracketing the fire date.
+
+**Next steps**
+
+1. Tune the stream threshold (`params$stream_area_km2`) against imagery and any field-known channels.
+2. Find the fire date (FIRMS), set the pre/post windows in `scripts/gee/01_kitobo_dNBR.js`, run both Earth Engine scripts and download the exports to `data/raw/gee/`.
+3. Run `scripts/03_fire_regeneration.R` and re-knit this note; sections 3 and 4 fill in automatically.
+4. Match the table layout to the AWF reporting format once it is shared.
+
+# 6. Reproducibility
+
+```{r versions}
+pk <- c("sf", "terra", "tmap", "whitebox", "elevatr", "exactextractr", "trend")
+knitr::kable(tibble(Package = pk, Version = vapply(pk, function(p) as.character(packageVersion(p)), character(1))),
+             caption = paste0(R.version.string, "; knitted ", format(Sys.time(), "%Y-%m-%d %H:%M"), "."))
+```
+
+Scripts: `scripts/00_setup.R` to `scripts/03_fire_regeneration.R`, and `scripts/gee/` for Earth Engine. Methods and design decisions: `docs/methodology.md`.
